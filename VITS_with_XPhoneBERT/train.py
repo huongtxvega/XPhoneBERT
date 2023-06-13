@@ -1,10 +1,5 @@
 import os
-import json
-import argparse
-import itertools
-import math
 import torch
-from torch import nn, optim
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -12,7 +7,7 @@ import torch.multiprocessing as mp
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.cuda.amp import autocast, GradScaler
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer
 
 import commons
 import utils
@@ -119,11 +114,11 @@ def run(rank, n_gpus, hps):
 
     for epoch in range(epoch_str, hps.train.epochs + 1):
         if epoch < int(hps.train.epochs / 4):
-            for child in net_g.enc_p.bert.children():
+            for child in net_g.module.enc_p.bert.children():
                 for param in child.parameters():
                     param.requires_grad = False
         else:
-            for child in net_g.enc_p.bert.children():
+            for child in net_g.module.enc_p.bert.children():
                 for param in child.parameters():
                     param.requires_grad = True
         if rank == 0:
