@@ -1,10 +1,12 @@
+protobuf==3.20.1
 Cython==0.29.21
 librosa==0.8.0
 matplotlib==3.3.1
-numpy==1.18.5
 scipy==1.5.2
 tensorboard==2.3.0
-torch==1.6.0
-torchvision==0.7.0
 Unidecode==1.1.1
-text2phonemesequence
+torch==2.0.0
+torchvision==0.15.1
+text2phonemesequence @ git+https://github.com/huongtxvega/Text2PhonemeSequence.git@master
+phonemizer==3.2.1
+numpy==1.21.0
