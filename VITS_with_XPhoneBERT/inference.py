@@ -16,12 +16,12 @@ def get_inputs(text, model, tokenizer_xphonebert):
     return input_ids, attention_mask
 
 
-def inference(text, output, config, model_ckp, language='vie-n', is_cuda=True):
-    device = torch.device("cuda:0") if is_cuda else torch.device("cpu") 
+def inference(text, output, config, model_ckp, language='vie-n', cuda=True):
+    device = torch.device("cuda:0") if cuda else torch.device("cpu") 
     hps = utils.get_hparams_from_file(config)
     tokenizer_xphonebert = AutoTokenizer.from_pretrained(hps.bert)
     # Load Text2PhonemeSequence
-    model = Text2PhonemeSequence(language=language, is_cuda=is_cuda)
+    model = Text2PhonemeSequence(language=language, is_cuda=cuda)
     net_g = SynthesizerTrn(
         hps.bert,
         hps.data.filter_length // 2 + 1,
