@@ -1,51 +1,62 @@
-import IPython.display as ipd
-
 import torch
 import utils
 from models import SynthesizerTrn
 from transformers import AutoTokenizer
 import soundfile as sf
 from text2phonemesequence import Text2PhonemeSequence
-from tqdm import tqdm
+from underthesea import word_tokenize
 
 
 def get_inputs(text, model, tokenizer_xphonebert):
-    phones = model.infer_sentence(text)
+    text_segmented = word_tokenize(text, format="text")
+    phones = model.infer_sentence(text_segmented)
     tokenized_text = tokenizer_xphonebert(phones)
-    input_ids = tokenized_text['input_ids']
-    attention_mask = tokenized_text['attention_mask']
-    input_ids = torch.LongTensor(input_ids).cuda()
-    attention_mask = torch.LongTensor(attention_mask).cuda()
+    input_ids = torch.LongTensor(tokenized_text['input_ids'])
+    attention_mask = torch.LongTensor(tokenized_text['attention_mask'])
     return input_ids, attention_mask
 
-hps = utils.get_hparams_from_file("./configs/lj_base_xphonebert.json")
-tokenizer_xphonebert = AutoTokenizer.from_pretrained(hps.bert)
-# Load Text2PhonemeSequence
-model = Text2PhonemeSequence(language='eng-us', is_cuda=True)
-net_g = SynthesizerTrn(
-    hps.bert,
-    hps.data.filter_length // 2 + 1,
-    hps.train.segment_size // hps.data.hop_length,
-    **hps.model).cuda()
-_ = net_g.eval()
 
-_ = utils.load_checkpoint("./logs/lj_base_xphonebert/G_161200.pth", net_g, None)
-
-f = open('./filelists/ljs_audio_text_test_filelist_phoneme_sequence.txt', 'r')
-list_lines = f.readlines()
-f.close()
-for line in tqdm(list_lines):
-    line = line.strip().split('|')
-    assert len(line) == 2
-
-    stn_tst, attention_mask = get_text(line[-1], model, tokenizer_xphonebert)
-    with torch.no_grad():
-        x_tst = stn_tst.cuda().unsqueeze(0)
-        attention_mask = attention_mask.cuda().unsqueeze(0)
-        audio = net_g.infer(x_tst, attention_mask, noise_scale=.667, noise_scale_w=0.8, length_scale=1)[0][0,0].data.cpu().float().numpy()
-
-    sf.write('./out_ljspeech/' + line[0], audio, hps.data.sampling_rate)
-    ipd.display(ipd.Audio(audio, rate=hps.data.sampling_rate, normalize=False))
+def inference(text, output, config, model_ckp, language='vie-n', is_cuda=True):
+    device = torch.device("cuda:0") if is_cuda else torch.device("cpu") 
+    hps = utils.get_hparams_from_file(config)
+    tokenizer_xphonebert = AutoTokenizer.from_pretrained(hps.bert)
+    # Load Text2PhonemeSequence
+    model = Text2PhonemeSequence(language=language, is_cuda=is_cuda)
+    net_g = SynthesizerTrn(
+        hps.bert,
+        hps.data.filter_length // 2 + 1,
+        hps.train.segment_size // hps.data.hop_length,
+        **hps.model).to(device)
     
+    _ = net_g.eval()
+
+    _ = utils.load_checkpoint(model_ckp, net_g, None)
+
+    input_ids, attention_mask = get_inputs(text, model, tokenizer_xphonebert)
+    
+    with torch.no_grad():
+        input_id = input_ids.to(device).unsqueeze(0)
+        attention_mask = attention_mask.to(device).unsqueeze(0)
+        audio = net_g.infer(input_id, 
+                            attention_mask, 
+                            noise_scale=.667, 
+                            noise_scale_w=0.8, 
+                            length_scale=1)
+        audio = audio[0][0,0].data.cpu().float().numpy()
+
+    sf.write(output, audio, hps.data.sampling_rate)
 
 
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-t', '--text', dest="text", type=str, required=True)
+    parser.add_argument('-o', '--output', dest="output", type=str, help='Output wav file')
+    parser.add_argument('-c', '--config', dest="config", type=str, help='JSON file for configuration')
+    parser.add_argument('-m', '--model-ckp', dest="model_ckp", type=str, required=True, help='Path to model checkpoint')
+    parser.add_argument('-l', '--language', dest="language", type=str, default="vie-n", help='Language for phoneme tokenize')
+    parser.add_argument('--cuda', dest="cuda", type=bool, default=True)
+    
+    args = parser.parse_args()
+
+    inference(**args.__dict__)
