@@ -10,3 +10,4 @@ torchvision==0.14.1
 text2phonemesequence @ git+https://github.com/huongtxvega/Text2PhonemeSequence.git@master
 phonemizer==3.2.1
 numpy==1.21.0
+underthesea
